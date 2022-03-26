@@ -1,34 +1,34 @@
 name: Pull Request Test && Merge
-on: [pull_request]
+on: [push]
 jobs:
-
   install:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [macos-latest]
     runs-on: ${{ matrix.os }}
     env:
       TERM: xterm-256color
       COLORTERM: truecolor
     steps:
-      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
-      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
-      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
-      - name: Check out repository code
-        uses: actions/checkout@v2
-      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
-      - run: echo "🖥️ run bash rei.sh --yes"
+      - name: Install Docker
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install --cask docker
+          docker_app_path=$(brew list --cask docker | grep '==> App' -A1 | tail -n 1 | awk '{ print $1 }')
+          docker_app_path="${docker_app_path/#\~/$HOME}"
+          sudo "$docker_app_path"/Contents/MacOS/Docker --unattended --install-privileged-components
+          open -a "$docker_app_path" --args --unattended --accept-license
+          while ! "$docker_app_path"/Contents/Resources/bin/docker info &>/dev/null; do sleep 1; done
+          # Wait for the server to start up, if applicable.
+          i=0
+          while ! docker system info &>/dev/null; do
+            (( i++ == 0 )) && printf %s '-- Waiting for Docker to finish starting up...' || printf '.'
+            sleep 1
+          done
+          (( i )) && printf '\n'
+          # https://github.com/actions/virtual-environments/issues/1143#issuecomment-652264388
+          echo "-- Docker is ready."
       - name: run REI install
         run: |
           bash rei.sh --yes
       - run: echo "🍏 This job's status is ${{ job.status }}."
-
-  add_label:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-ecosystem/action-add-labels@v1
-        if: ${{ startsWith(github.event.comment.body, '/add-labels') }}
-        with:
-          labels: automerge
